@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#14170F">
+<title>LAN PTT</title>
+<style>
+:root{
+  --case-deep:#14170F;
+  --case:#1E2318;
+  --case-lift:#2A3121;
+  --edge:#3A422C;
+  --lcd:#A8BC63;
+  --lcd-dim:#7E9048;
+  --lcd-ink:#161A0B;
+  --tx:#E4552F;
+  --rx:#6FD4E8;
+  --text:#D6DCC4;
+  --text-dim:#7F8A6B;
+
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+html,body{height:100%}
+body{
+  background:var(--case-deep);
+  color:var(--text);
+  font-family:var(--sans);
+  display:flex;justify-content:center;
+  overscroll-behavior:none;
+}
+
+.unit{
+  width:100%;max-width:430px;
+  display:flex;flex-direction:column;
+  background:var(--case);
+  border-left:1px solid var(--edge);border-right:1px solid var(--edge);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+
+/* ---------- LCD ---------- */
+
+.lcd{
+  margin:14px 14px 0;padding:14px 16px 12px;
+  background:var(--lcd);
+  border-radius:3px;
+  border:1px solid #5F6E36;
+  box-shadow:inset 0 2px 10px rgba(22,26,11,.35), 0 1px 0 #46512A;
+  color:var(--lcd-ink);
+  font-family:var(--mono);
+}
+
+.lcd-top{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  opacity:.62;
+}
+
+.lcd-main{
+  margin:9px 0 11px;
+  font-size:23px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;
+  line-height:1.15;
+  min-height:1.15em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.lcd-sub{
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  opacity:.66;min-height:1.2em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+.flags{display:flex;gap:5px;margin-top:11px}
+.flag{
+  font-size:9.5px;font-weight:700;letter-spacing:.14em;
+  padding:3px 7px;border:1px solid currentColor;border-radius:2px;
+  opacity:.17;                      /* unlit LCD segments stay faintly visible */
+  transition:opacity .1s linear;
+}
+@media (prefers-reduced-motion:reduce){.flag{transition:none}}
+.flag.on{opacity:1}
+.flag.tx.on{background:var(--lcd-ink);color:var(--lcd)}
+
+/* ---------- roster ---------- */
+
+.roster-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:20px 18px 9px;
+  font-family:var(--mono);font-size:10px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim);
+}
+
+.roster{flex:1;overflow-y:auto;padding:0 14px 14px;-webkit-overflow-scrolling:touch}
+
+.row{
+  display:flex;align-items:center;gap:12px;
+  width:100%;text-align:left;
+  padding:13px 14px;margin-bottom:6px;
+  background:var(--case-lift);
+  border:1px solid transparent;border-radius:4px;
+  color:var(--text);font:inherit;font-size:15px;
+  cursor:pointer;
+}
+.row:focus-visible{outline:2px solid var(--rx);outline-offset:2px}
+.row[aria-pressed="true"]{border-color:var(--lcd-dim);background:#333B27}
+
+.dot{width:7px;height:7px;border-radius:50%;background:var(--lcd-dim);flex:none}
+.row.speaking .dot{background:var(--rx);box-shadow:0 0 0 3px rgba(111,212,232,.2)}
+
+.row-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-tag{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--text-dim);flex:none;
+}
+.row[aria-pressed="true"] .row-tag{color:var(--lcd)}
+
+.empty{
+  padding:26px 16px;text-align:center;
+  color:var(--text-dim);font-size:13.5px;line-height:1.6;
+}
+
+/* ---------- PTT ---------- */
+
+.deck{padding:12px 14px 16px;border-top:1px solid var(--edge);background:var(--case)}
+
+.ptt{
+  width:100%;height:104px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  background:var(--case-lift);
+  border:1px solid var(--edge);
+  border-bottom-width:4px;
+  border-radius:7px;
+  color:var(--text);
+  font-family:var(--mono);font-size:14px;font-weight:700;
+  letter-spacing:.22em;text-transform:uppercase;
+  cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;
+  transition:transform .05s linear,background .05s linear;
+}
+@media (prefers-reduced-motion:reduce){.ptt{transition:none}}
+.ptt:focus-visible{outline:2px solid var(--rx);outline-offset:3px}
+.ptt small{font-size:9.5px;letter-spacing:.16em;font-weight:400;opacity:.5}
+
+.ptt.live{
+  background:var(--tx);border-color:#8E2E17;color:#1A0B05;
+  border-bottom-width:1px;transform:translateY(3px);
+}
+.ptt.live small{opacity:.72}
+.ptt:disabled{opacity:.35;cursor:default}
+
+/* level meter sits inside the PTT face */
+.meter{width:132px;height:3px;background:rgba(0,0,0,.3);border-radius:2px;overflow:hidden}
+.meter i{display:block;height:100%;width:0%;background:var(--lcd)}
+.ptt.live .meter i{background:#1A0B05}
+
+/* ---------- join ---------- */
+
+.gate{
+  position:fixed;inset:0;z-index:10;
+  background:var(--case-deep);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:15px;padding:30px;text-align:center;
+}
+.gate h1{
+  font-family:var(--mono);font-size:15px;font-weight:700;
+  letter-spacing:.3em;text-transform:uppercase;color:var(--lcd);
+}
+.gate p{font-size:13.5px;color:var(--text-dim);max-width:31ch;line-height:1.65}
+.gate input{
+  width:100%;max-width:260px;padding:13px 14px;
+  background:var(--case);border:1px solid var(--edge);border-radius:4px;
+  color:var(--text);font-family:var(--mono);font-size:16px;
+  letter-spacing:.08em;text-align:center;
+}
+.gate input:focus{outline:none;border-color:var(--lcd-dim)}
+.gate button{
+  width:100%;max-width:260px;padding:14px;
+  background:var(--lcd);border:none;border-radius:4px;
+  color:var(--lcd-ink);font-family:var(--mono);font-size:13px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;cursor:pointer;
+}
+.gate button:disabled{opacity:.4;cursor:default}
+.gate .err{color:var(--tx);font-size:12.5px;max-width:33ch;line-height:1.6;min-height:1.6em}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="unit">
+  <div class="lcd">
+    <div class="lcd-top">
+      <span>CH 1 · LOCAL</span>
+      <span id="count">0 UNITS</span>
+    </div>
+    <div class="lcd-main" id="lcdMain">CONNECTING</div>
+    <div class="lcd-sub" id="lcdSub">&nbsp;</div>
+    <div class="flags">
+      <span class="flag" id="fLink">LINK</span>
+      <span class="flag tx" id="fTx">TX</span>
+      <span class="flag" id="fRx">RX</span>
+      <span class="flag" id="fBusy">BUSY</span>
+    </div>
+  </div>
+
+  <div class="roster-head">
+    <span>On this network</span>
+    <span id="targetLabel">→ ALL</span>
+  </div>
+
+  <div class="roster" id="roster"></div>
+
+  <div class="deck">
+    <button class="ptt" id="ptt" disabled>
+      <span id="pttLabel">HOLD TO TALK</span>
+      <div class="meter"><i id="meterFill"></i></div>
+      <small id="pttHint">or hold SPACE</small>
+    </button>
+  </div>
+</div>
+
+<div class="gate" id="gate">
+  <h1>LAN PTT</h1>
+  <p>Everyone with the channel code shares one channel. Ask whoever
+     started the server for the code.</p>
+  <input id="nameInput" maxlength="24" placeholder="YOUR NAME" autocomplete="off"
+         autocapitalize="words" spellcheck="false">
+  <input id="codeInput" maxlength="12" placeholder="CHANNEL CODE" autocomplete="off"
+         autocapitalize="characters" spellcheck="false">
+  <button id="joinBtn">Join channel</button>
+  <div class="err" id="gateErr"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ================================================================
+   Audio capture worklet — hands us 40 ms blocks of mono float PCM
+   ================================================================ */
+
+const WORKLET_SRC = `
+class Tap extends AudioWorkletProcessor {
+  constructor(){ super(); this.buf = new Float32Array(640); this.n = 0; }
+  process(inputs){
+    const ch = inputs[0] && inputs[0][0];
+    if (!ch) return true;
+    for (let i = 0; i < ch.length; i++){
+      this.buf[this.n++] = ch[i];
+      if (this.n === this.buf.length){
+        this.port.postMessage(this.buf);       // structured clone copies it
+        this.n = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('tap', Tap);
+`;
+
+const RATE       = 16000;   // capture + transport rate
+const JITTER_LAN = 0.08;    // 80 ms of slack -- ample on a quiet LAN
+const JITTER_WAN = 0.28;    // over a tunnel or a hosted server, 80 ms underruns
+const JITTER_MAX = 0.50;    // past this, lag hurts more than the dropouts did
+const RECONNECT  = 1500;
+
+/* A same-LAN origin gets the tight buffer. Anything reached over the
+ * internet starts with more slack, then grows it if frames still land
+ * late -- measured jitter through a Cloudflare tunnel spanned ~700 ms. */
+const ON_LAN = /^(localhost$|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/
+  .test(location.hostname);
+let jitter = ON_LAN ? JITTER_LAN : JITTER_WAN;
+
+/* ================================================================
+   State
+   ================================================================ */
+
+const S = {
+  ws:null, me:null, myName:'', myCode:'',
+  peers:new Map(),          // id -> { id, name }
+  target:'all',             // 'all' | numeric peer id
+  talking:false,
+  incoming:new Map(),       // senderId -> { name, rate, nextTime }
+  ctx:null, mic:null, node:null, analyser:null,
+  connected:false, closing:false,
+  coarse:matchMedia('(pointer:coarse)').matches,
+};
+
+const $ = (id) => document.getElementById(id);
+const el = {
+  gate:$('gate'), nameInput:$('nameInput'), codeInput:$('codeInput'),
+  joinBtn:$('joinBtn'), gateErr:$('gateErr'),
+  lcdMain:$('lcdMain'), lcdSub:$('lcdSub'), count:$('count'),
+  fLink:$('fLink'), fTx:$('fTx'), fRx:$('fRx'), fBusy:$('fBusy'),
+  roster:$('roster'), targetLabel:$('targetLabel'),
+  ptt:$('ptt'), pttLabel:$('pttLabel'), pttHint:$('pttHint'), meterFill:$('meterFill'),
+};
+
+/* ================================================================
+   Display
+   ================================================================ */
+
+function flag(node, on){ node.classList.toggle('on', on); }
+
+function paintLCD(){
+  const speakers = [...S.incoming.values()];
+
+  if (!S.connected){
+    el.lcdMain.textContent = 'NO LINK';
+    el.lcdSub.textContent = 'reconnecting…';
+  } else if (S.talking){
+    el.lcdMain.textContent = 'TRANSMITTING';
+    el.lcdSub.textContent = S.target === 'all'
+      ? 'to everyone'
+      : 'to ' + (S.peers.get(S.target)?.name || 'unit');
+  } else if (speakers.length){
+    const s = speakers[0];
+    el.lcdMain.textContent = s.name;
+    el.lcdSub.textContent = s.direct ? 'calling you directly' : 'on the channel';
+  } else {
+    el.lcdMain.textContent = 'READY';
+    el.lcdSub.textContent = S.peers.size > 1      // the roster counts you too
+      ? 'channel clear'
+      : 'waiting for other units';
+  }
+
+  flag(el.fLink, S.connected);
+  flag(el.fTx, S.talking);
+  flag(el.fRx, speakers.length > 0);
+  flag(el.fBusy, !S.talking && speakers.length > 0);
+
+  paintPTT();
+
+  const n = S.peers.size;
+  el.count.textContent = n === 1 ? '1 UNIT' : n + ' UNITS';
+}
+
+function paintPTT(){
+  const busy = !S.talking && S.incoming.size > 0;
+  el.ptt.disabled = !S.connected || busy;
+  el.ptt.classList.toggle('live', S.talking);
+  el.pttLabel.textContent =
+    S.talking ? 'ON AIR' : busy ? 'CHANNEL BUSY' : 'HOLD TO TALK';
+  el.pttHint.textContent =
+    busy ? 'wait for the channel'
+    : S.talking ? 'release to stop'
+    : !S.connected ? 'no connection'
+    : S.coarse ? 'press and hold' : 'or hold SPACE';
+}
+
+function paintRoster(){
+  const others = [...S.peers.values()].filter((p) => p.id !== S.me);
+  el.roster.replaceChildren();
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'row';
+  allBtn.setAttribute('aria-pressed', String(S.target === 'all'));
+  allBtn.innerHTML =
+    '<span class="dot"></span><span class="row-name">Everyone</span>' +
+    '<span class="row-tag">Broadcast</span>';
+  allBtn.onclick = () => setTarget('all');
+  el.roster.appendChild(allBtn);
+
+  if (!others.length){
+    const p = document.createElement('p');
+    p.className = 'empty';
+    p.textContent = 'No one else yet. Open this same address on another device on this Wi-Fi.';
+    el.roster.appendChild(p);
+  }
+
+  for (const p of others){
+    const b = document.createElement('button');
+    b.className = 'row' + (S.incoming.has(p.id) ? ' speaking' : '');
+    b.setAttribute('aria-pressed', String(S.target === p.id));
+    b.innerHTML =
+      '<span class="dot"></span><span class="row-name"></span>' +
+      '<span class="row-tag">' + (S.incoming.has(p.id) ? 'Talking' : 'Direct') + '</span>';
+    b.querySelector('.row-name').textContent = p.name;
+    b.onclick = () => setTarget(p.id);
+    el.roster.appendChild(b);
+  }
+
+  el.targetLabel.textContent = S.target === 'all'
+    ? '→ ALL'
+    : '→ ' + (S.peers.get(S.target)?.name || '—').toUpperCase();
+}
+
+function setTarget(t){
+  S.target = t;
+  paintRoster();
+  paintLCD();
+}
+
+function repaint(){ paintRoster(); paintLCD(); paintPTT(); }
+
+/* ================================================================
+   Audio out — one scheduled queue per speaker
+   ================================================================ */
+
+function playFrame(senderId, pcm16){
+  const ctx = S.ctx;
+  if (!ctx) return;
+
+  const meta = S.incoming.get(senderId) || { rate:RATE, name:'Unit' };
+  const f32 = new Float32Array(pcm16.length);
+  for (let i = 0; i < pcm16.length; i++) f32[i] = pcm16[i] / 32768;
+
+  const buf = ctx.createBuffer(1, f32.length, meta.rate || RATE);
+  buf.copyToChannel(f32, 0);
+
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+
+  const now = ctx.currentTime;
+  if (!(meta.nextTime > now)) {
+    /* nextTime is 0 at the top of a transmission -- that is priming, not a
+     * fault. Any other time we are scheduling into the past, so this link
+     * needs more slack than we allowed. Widen it rather than glitch again. */
+    if (meta.nextTime) jitter = Math.min(JITTER_MAX, jitter + 0.04);
+    meta.nextTime = now + jitter;
+  }
+  src.start(meta.nextTime);
+  meta.nextTime += buf.duration;
+  S.incoming.set(senderId, meta);
+}
+
+/** Short falling tone when the channel frees up — the roger beep. */
+function rogerBeep(){
+  const ctx = S.ctx;
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.exponentialRampToValueAtTime(620, t + 0.09);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.08, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.14);
+}
+
+/* ================================================================
+   Audio in
+   ================================================================ */
+
+async function startAudio(){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio:{
+      channelCount:1,
+      echoCancellation:true,
+      noiseSuppression:true,
+      autoGainControl:true,
+    },
+  });
+
+  let ctx;
+  try { ctx = new AudioContext({ sampleRate:RATE, latencyHint:'interactive' }); }
+  catch { ctx = new AudioContext(); }
+  if (ctx.state === 'suspended') await ctx.resume();
+
+  const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type:'application/javascript' }));
+  await ctx.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+
+  const mic = ctx.createMediaStreamSource(stream);
+  const node = new AudioWorkletNode(ctx, 'tap', { numberOfOutputs:0 });
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+
+  mic.connect(node);
+  mic.connect(analyser);          // analyser has no output — nothing loops back
+
+  node.port.onmessage = (e) => {
+    if (!S.talking || !S.ws || S.ws.readyState !== WebSocket.OPEN) return;
+    const f32 = e.data;
+    const i16 = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++){
+      const s = Math.max(-1, Math.min(1, f32[i]));
+      i16[i] = s < 0 ? s * 32768 : s * 32767;
+    }
+    S.ws.send(i16.buffer);
+  };
+
+  Object.assign(S, { ctx, mic, node, analyser });
+  meterLoop();
+}
+
+function meterLoop(){
+  const bins = new Uint8Array(S.analyser.frequencyBinCount);
+  const tick = () => {
+    S.analyser.getByteTimeDomainData(bins);
+    let peak = 0;
+    for (let i = 0; i < bins.length; i++){
+      const d = Math.abs(bins[i] - 128);
+      if (d > peak) peak = d;
+    }
+    el.meterFill.style.width = S.talking
+      ? Math.min(100, (peak / 128) * 190) + '%'
+      : '0%';
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+/* ================================================================
+   Transport
+   ================================================================ */
+
+function connect(){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(proto + '://' + location.host);
+  ws.binaryType = 'arraybuffer';
+  S.ws = ws;
+
+  ws.onopen = () => {
+    S.connected = true;
+    ws.send(JSON.stringify({ type:'join', name:S.myName, code:S.myCode }));
+    repaint();
+  };
+
+  ws.onmessage = (ev) => {
+    if (ev.data instanceof ArrayBuffer){
+      const view = new DataView(ev.data);
+      const from = view.getUint32(0);
+      playFrame(from, new Int16Array(ev.data, 4));
+      return;
+    }
+    handle(JSON.parse(ev.data));
+  };
+
+  ws.onclose = () => {
+    S.connected = false;
+    S.talking = false;
+    S.incoming.clear();
+    repaint();
+    if (!S.closing) setTimeout(connect, RECONNECT);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function handle(m){
+  switch (m.type){
+    case 'denied':
+      /* Park the reconnect loop -- retrying a bad code forever just
+       * hammers the server and never recovers on its own. */
+      S.closing = true;
+      S.peers.clear();
+      S.incoming.clear();
+      el.gate.classList.remove('hidden');
+      el.joinBtn.disabled = false;
+      el.gateErr.textContent =
+        m.reason === 'full'    ? 'Channel is full right now. Try again shortly.' :
+        m.reason === 'timeout' ? 'Joining timed out. Try again.' :
+                                 'Wrong channel code.';
+      if (m.reason === 'code') el.codeInput.focus();
+      repaint();
+      break;
+
+    case 'welcome':
+      S.me = m.id;
+      S.peers = new Map(m.peers.map((p) => [p.id, p]));
+      if (S.target !== 'all' && !S.peers.has(S.target)) S.target = 'all';
+      repaint();
+      break;
+
+    case 'peer-join':
+      S.peers.set(m.peer.id, m.peer);
+      repaint();
+      break;
+
+    case 'peer-rename':
+      if (S.peers.has(m.id)) S.peers.get(m.id).name = m.name;
+      repaint();
+      break;
+
+    case 'peer-leave':
+      S.peers.delete(m.id);
+      S.incoming.delete(m.id);
+      if (S.target === m.id) S.target = 'all';
+      repaint();
+      break;
+
+    case 'talk-start':
+      S.incoming.set(m.from, {
+        name:m.fromName, rate:m.sampleRate || RATE,
+        direct:m.direct, nextTime:0,
+      });
+      repaint();
+      break;
+
+    case 'talk-end':
+      if (S.incoming.delete(m.from)) rogerBeep();
+      repaint();
+      break;
+
+    case 'busy':
+      S.talking = false;
+      paintPTT();
+      el.lcdSub.textContent = m.by + ' has the channel';
+      break;
+  }
+}
+
+/* ================================================================
+   Push to talk
+   ================================================================ */
+
+function pressStart(){
+  if (S.talking || !S.connected || el.ptt.disabled) return;
+  if (S.incoming.size) return;                       // someone else is on
+  if (S.ctx && S.ctx.state === 'suspended') S.ctx.resume();
+
+  S.talking = true;
+  S.ws.send(JSON.stringify({
+    type:'talk-start',
+    to:S.target,
+    sampleRate:S.ctx ? Math.round(S.ctx.sampleRate) : RATE,
+  }));
+  paintLCD();
+}
+
+function pressEnd(){
+  if (!S.talking) return;
+  S.talking = false;
+  el.meterFill.style.width = '0%';
+  if (S.ws && S.ws.readyState === WebSocket.OPEN){
+    S.ws.send(JSON.stringify({ type:'talk-end' }));
+  }
+  paintLCD();
+}
+
+el.ptt.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  el.ptt.setPointerCapture(e.pointerId);
+  pressStart();
+});
+el.ptt.addEventListener('pointerup', pressEnd);
+el.ptt.addEventListener('pointercancel', pressEnd);
+el.ptt.addEventListener('contextmenu', (e) => e.preventDefault());
+
+addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !e.repeat && el.gate.classList.contains('hidden')){
+    e.preventDefault(); pressStart();
+  }
+});
+addEventListener('keyup', (e) => {
+  if (e.code === 'Space'){ e.preventDefault(); pressEnd(); }
+});
+addEventListener('blur', pressEnd);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pressEnd(); });
+addEventListener('beforeunload', () => { S.closing = true; });
+
+/* ================================================================
+   Join
+   ================================================================ */
+
+el.nameInput.value = localStorage.getItem('ptt-name') || '';
+el.codeInput.value = localStorage.getItem('ptt-code') || '';
+
+el.joinBtn.addEventListener('click', async () => {
+  const name = el.nameInput.value.trim();
+  if (!name){
+    el.gateErr.textContent = 'Enter a name so others can find you.';
+    el.nameInput.focus();
+    return;
+  }
+
+  const code = el.codeInput.value.trim().toUpperCase();
+  if (!code){
+    el.gateErr.textContent = 'Enter the channel code.';
+    el.codeInput.focus();
+    return;
+  }
+
+  el.joinBtn.disabled = true;
+  el.gateErr.textContent = '';
+  S.myName = name;
+  S.myCode = code;
+  S.closing = false;                 // a previous denial may have parked us
+  localStorage.setItem('ptt-name', name);
+  localStorage.setItem('ptt-code', code);
+
+  try {
+    await startAudio();
+  } catch (err){
+    el.joinBtn.disabled = false;
+    el.gateErr.textContent = (err && err.name === 'NotAllowedError')
+      ? 'Microphone blocked. Allow it in your browser settings, then try again.'
+      : 'No microphone available: ' + (err && err.message ? err.message : err);
+    return;
+  }
+
+  el.gate.classList.add('hidden');
+  connect();
+});
+
+el.nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') el.codeInput.focus();
+});
+
+el.codeInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') el.joinBtn.click();
+});
+
+repaint();
+</script>
+</body>
+</html>

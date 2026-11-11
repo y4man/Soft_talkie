@@ -1,0 +1,16 @@
+{
+  "name": "lan-ptt",
+  "version": "1.0.0",
+  "description": "Push-to-talk over your local Wi-Fi router, or anywhere via a Cloudflare tunnel.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js --tunnel",
+    "lan": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "selfsigned": "^2.4.1",
+    "ws": "^8.18.0"
+  }
+}
